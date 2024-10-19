@@ -1,82 +1,56 @@
-import alpha_vantage
-from alpha_vantage.timeseries import TimeSeries
+import yfinance as yf
 import pandas as pd
-
 class StockPortfolio:
-    def __init__(self, api_key):
-        """
-        Initialize the stock portfolio with an Alpha Vantage API key.
-
-        Args:
-            api_key (str): Alpha Vantage API key
-        """
-        self.api_key = api_key
-        self.portfolio = {}
-
-    def add_stock(self, symbol, quantity):
+    def __init__(self):
+        # Initialize an empty portfolio as a DataFrame
+        self.portfolio = pd.DataFrame(columns=['Ticker', 'Shares', 'Purchase Price'])
+    def add_stock(self, ticker, shares, purchase_price):
         """
         Add a stock to the portfolio.
-
-        Args:
-            symbol (str): Stock symbol (e.g. "AAPL")
-            quantity (int): Number of shares to add
+        :param ticker: Stock ticker symbol (e.g., 'AAPL')
+        :param shares: Number of shares purchased
+        :param purchase_price: Price per share at the time of purchase
         """
-        if symbol in self.portfolio:
-            self.portfolio[symbol]["quantity"] += quantity
-        else:
-            self.portfolio[symbol] = {"quantity": quantity, "price": self.get_current_price(symbol)}
-
-    def remove_stock(self, symbol, quantity):
+        # Create a new row for the stock
+        new_stock = pd.DataFrame([[ticker, shares, purchase_price]], columns=self.portfolio.columns)
+        # Append the new stock to the portfolio
+        self.portfolio = pd.concat([self.portfolio, new_stock], ignore_index=True)
+    def remove_stock(self, ticker):
         """
-        Remove a stock from the portfolio.
-
-        Args:
-            symbol (str): Stock symbol (e.g. "AAPL")
-            quantity (int): Number of shares to remove
+        Remove a stock from the portfolio by ticker symbol.
+        :param ticker: Stock ticker symbol to remove
         """
-        if symbol in self.portfolio:
-            if self.portfolio[symbol]["quantity"] >= quantity:
-                self.portfolio[symbol]["quantity"] -= quantity
-            else:
-                print("Insufficient quantity to remove")
-        else:
-            print("Stock not found in portfolio")
-
-    def get_current_price(self, symbol):
+        self.portfolio = self.portfolio[self.portfolio['Ticker'] != ticker]
+    def get_portfolio_value(self):
         """
-        Get the current price of a stock using the Alpha Vantage API.
-
-        Args:
-            symbol (str): Stock symbol (e.g. "AAPL")
-
-        Returns:
-            float: Current stock price
-        """
-        ts = TimeSeries(key=self.api_key, output_format='pandas')
-        data, meta_data = ts.get_quote_endpoint(symbol=symbol)
-        return float(data['05. price'].iloc[0])
-
-    def track_performance(self):
-        """
-        Track the performance of the portfolio by calculating the total value and percentage change.
+        Calculate the total value of the portfolio based on current stock prices.
+        :return: Total value of the portfolio
         """
         total_value = 0
-        for symbol, info in self.portfolio.items():
-            current_price = self.get_current_price(symbol)
-            total_value += current_price * info["quantity"]
-            percentage_change = ((current_price - info["price"]) / info["price"]) * 100
-            print(f"{symbol}: ${current_price:.2f} ({percentage_change:.2f}%)")
-        print(f"Total portfolio value: ${total_value:.2f}")
-
+        for index, row in self.portfolio.iterrows():
+            # Fetch current stock price
+            stock = yf.Ticker(row['Ticker'])
+            current_price = stock.history(period='1d')['Close'].iloc[-1]
+            # Calculate total value for this stock
+            total_value += current_price * row['Shares']
+        return total_value
+    def display_portfolio(self):
+        """
+        Display the current portfolio.
+        """
+        print("Current Portfolio:")
+        print(self.portfolio)
+        print(f"Total Portfolio Value: ${self.get_portfolio_value():.2f}")
 # Example usage
-api_key = "YOUR_API_KEY_HERE"
-portfolio = StockPortfolio(api_key)
-
-portfolio.add_stock("AAPL", 10)
-portfolio.add_stock("GOOG", 5)
-
-portfolio.track_performance()
-
-portfolio.remove_stock("AAPL", 5)
-
-portfolio.track_performance()
+if __name__ == "__main__":
+    # Create a StockPortfolio instance
+    my_portfolio = StockPortfolio()
+    # Add stocks to the portfolio
+    my_portfolio.add_stock('AAPL', 10, 150.00)  # 10 shares of Apple at $150 each
+    my_portfolio.add_stock('GOOGL', 5, 2800.00)  # 5 shares of Google at $2800 each
+    # Display the portfolio
+    my_portfolio.display_portfolio()
+    # Remove a stock from the portfolio
+    my_portfolio.remove_stock('AAPL')
+    # Display the updated portfolio
+    my_portfolio.display_portfolio()
